@@ -4,8 +4,8 @@ const fs = require('fs');
 const windowStateKeeper = require('electron-window-state');
 const { ElectronBlocker } = require('@cliqz/adblocker-electron');
 const blocker = ElectronBlocker.parse(fs.readFileSync(path.join(__dirname, 'resources', 'easylist.txt'), 'utf-8'));
-const buildContextMenu = require(path.join(__dirname, 'resources', 'contextMenu.js'));
-const setApplicationMenu = require(path.join(__dirname, 'resources', 'menu.js'));
+const buildContextMenu = require(path.join(__dirname, 'scripts', 'contextMenu.js'));
+const setApplicationMenu = require(path.join(__dirname, 'scripts', 'menu.js'));
 const config = require(path.join(__dirname, 'config.js'));
 
 // PARAMETERS

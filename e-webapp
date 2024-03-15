@@ -8,7 +8,7 @@ import subprocess
 import json
 import re
 import cairosvg
-from e_webapp_subfunctions import update_easylist_if_needed, get_webpage_metadata, get_default_icon
+from scripts.e_webapp_subfunctions import update_easylist_if_needed, get_webpage_metadata, get_default_icon
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Build a web Electron wrapper application.')
@@ -54,7 +54,7 @@ get_webpage_metadata(args.webaddress)       # get metadata
 electron_dir = os.path.dirname(os.path.abspath(__file__))
 home_dir = os.environ.get('HOME')
 app_dir = os.path.join(electron_dir, 'apps', args.appname.lower())
-template_dir = os.path.join(electron_dir, 'templates')
+resources_dir = os.path.join(electron_dir, 'resources')
 node_modules_path = os.path.join(electron_dir, 'node_modules')
 
 # Check if the 'node_modules' folder does not exist
@@ -76,19 +76,28 @@ if os.path.exists(app_dir):
 os.makedirs(app_dir)
 
 # Create symlinks to 'node_modules' and 'resources'
-for folder in ['node_modules', 'resources']:
+for folder in ['node_modules', 'resources', 'scripts']:
     src = os.path.join('..', '..', folder)
     dst = os.path.join(app_dir, folder)
     os.symlink(src, dst)
 
 # Copy necessary files
-for file in ['index.js', 'package-lock.json', 'package.json']:
-    if file in ['package-lock.json', 'package.json']:
-        src = os.path.join(electron_dir, file)
-    else:
-        src = os.path.join(template_dir, file)
-    dst = app_dir
-    shutil.copy(src, dst)
+for file in ['package-lock.json', 'package.json']:
+    src = os.path.join(electron_dir, file)
+
+    # Check if source file exists before copying
+    if not os.path.exists(src):
+        print(f"Error: Required file '{file}' not found in {electron_dir}.")
+        sys.exit("No package.json is found. Exiting...")
+    shutil.copy(src, app_dir)
+
+src = os.path.join(electron_dir, 'src', 'main', 'index.js')
+
+# Check if source file exists before copying
+if not os.path.exists(src):
+    print(f"Error: Required file index.js not found.")
+    sys.exit("No index.js is found. This is not normal. Exiting...")
+shutil.copy(src, app_dir)
 
 # Copy and rename ICONS
 # Function to find any icon
@@ -117,6 +126,7 @@ if not args.icon:
     app_name_lower = args.appname.lower()  # Assuming preprocessing has been applied
     search_paths = [
         os.path.expanduser("~/.local/share/icons/"),
+        "/usr/share/icons/hicolor/512x512/apps/",
         "/usr/share/icons/hicolor/256x256/apps/",
         "/usr/share/icons/hicolor/128x128/apps/",
         "/usr/share/pixmaps/"
@@ -135,7 +145,7 @@ if not args.icon:
     else:
         print("Icon not found on the host machine.")
         # Try to get icon from web or copy default from templates
-        get_default_icon(electron_dir, app_dir, template_dir)
+        get_default_icon(electron_dir, app_dir, resources_dir)
 else:
     # Logic to handle a manually provided icon path
     # For example, copying the specified icon to the app's directory
@@ -148,7 +158,7 @@ else:
 if args.trayicon:
     shutil.copy(args.trayicon, os.path.join(app_dir, 'trayicon.png'))
 
-# Generate config.js
+# Generate config.js that will be loaded by index.js during electron build
 config_template = """
 module.exports = {{
     webPath: '{webaddress}',
@@ -291,7 +301,7 @@ os.rename(dist_path, lib64_dir)
 os.symlink(os.path.join('..', 'lib64', app_name_lower), os.path.join(bin_dir, app_name_lower))
 
 # Copy 'AppRun' to AppDir
-shutil.copy(os.path.join(template_dir, 'AppRun'), appimage_dir)
+shutil.copy(os.path.join(electron_dir, 'build', 'AppRun'), appimage_dir)
 
 # Copy and rename icon
 shutil.copy(os.path.join(app_dir, 'icon.png'), os.path.join(appimage_dir, f"{app_name_lower}.png"))
@@ -366,7 +376,7 @@ if args.install:
 
     # Build the AppImage
     os.chdir(app_dir)
-    appimagetool_path = os.path.join(electron_dir, 'resources', 'appimagetool') 
+    appimagetool_path = os.path.join(electron_dir, 'build', 'appimagetool') 
     subprocess.run([appimagetool_path, appimage_dir, os.path.join(app_dir, appimage_file_name)], check=True)
 
     # Define install paths

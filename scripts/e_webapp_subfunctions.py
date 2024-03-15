@@ -135,7 +135,7 @@ def get_default_icon(electron_dir, app_dir, template_dir):
     # Path to search for 'webpage_meta.json'
     meta_file_path = os.path.join(electron_dir, 'webpage_meta.json')
     icon_path = os.path.join(app_dir, 'icon.png')
-    default_icon_path = os.path.join(template_dir, 'default.png')
+    default_icon_path = os.path.join(electron_dir, 'src', 'assets' 'default.png')
 
     if os.path.exists(meta_file_path):
         with open(meta_file_path, 'r') as meta_file:

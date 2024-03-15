@@ -76,7 +76,7 @@ function setApplicationMenu(mainWindow) {
                 },
                 {
                     label: 'Report an Issue',
-                    click: () => shell.openExternal('https://github.com/AI-ien/nativefier'),
+                    click: () => shell.openExternal('https://github.com/kem-a/e-webapp/issues'),
                     accelerator: 'CmdOrCtrl+Shift+I' // Custom accelerator for reporting an issue
                 }
             ]

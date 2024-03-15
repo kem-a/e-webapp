@@ -7,10 +7,11 @@ This project provides a script to create a web wrapper application using Electro
 - **Web to Desktop Conversion**: Easily convert any web address into a desktop application.
 - **Custom User Agent**: Choose between Chrome, Edge, and Safari user agents for web requests.
 - **Ad Blocker**: Integrate an ad blocker to improve browsing experience within the app.
+- **Native notifications**: Supports native desktop notifications.
 - **Custom CSS/JS Injection**: Ability to inject custom CSS and JavaScript for personalized app appearances and functionality.
 - **Tray Icon**: Option to add a tray icon for easy access and control.
 - **Single Instance Enforcement**: Ensure only a single instance of the application runs at a time.
-- **Desktop Integration**: Automatically generates `.desktop` file for Linux desktop environments, including an optional uninstall action if `uninstall_appimage` binary is found in the `$PATH`.
+- **Desktop Integration**: Automatically generates `.desktop` file for Linux desktop environments, including an optional uninstall action if [uninstall_appimage](https://github.com/kem-a/uninstall_appimage) binary is found in the `$PATH`.
 
 ## Prerequisites
 
@@ -37,7 +38,7 @@ This project provides a script to create a web wrapper application using Electro
 3. **Running the Script**: Use the script to build your Electron app with the desired web address and app name.
 
    ```sh
-   ./e-webapp --install --webaddress "https://example.com" --appname "ExampleApp"
+   ./e-webapp --webaddress "https://example.com" --appname "ExampleApp" --install
    ```
 
    Replace `https://example.com` with the web address you want to wrap and `"ExampleApp"` with your desired application name.
@@ -70,6 +71,13 @@ After running the script with the `--install` flag, an AppImage and a `.desktop`
 ## Debugging
 
 Pass the `--debug` flag to keep the build directory for debugging purposes.
+
+## Known Bugs and Issues
+
+* screen sharing does not work (would appreciate if someone can help me with this)
+* some web site notifications won't work due to custom implementation, like outlook.com or icloud.com
+* new windows from links open with default menus that action main menu, like quit will quit entire app not just new window
+* no proper internal url handling
 
 ## Contributing
 

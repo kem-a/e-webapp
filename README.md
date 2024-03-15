@@ -28,13 +28,11 @@ This project provides a script to create a web wrapper application using Electro
    git clone <repository-url>
    cd <repository-name>
    ```
-
 2. **Install Dependencies**: Make sure you have Node.js and npm installed, then run:
 
    ```sh
    npm install
    ```
-
 3. **Running the Script**: Use the script to build your Electron app with the desired web address and app name.
 
    ```sh

@@ -188,8 +188,8 @@ with open(package_json_path, 'r') as file:
     # Update values as required
     package_data['name'] = args.appname
     package_data['description'] = f"{args.appname} web client built with electron"
-    package_data['version']: "1.0.0"
-    package_data['main']: "index.js"
+    package_data['version'] = "1.0.0"
+    package_data['main'] = "index.js"
     package_data['scripts'] = {
         "pack": "electron-builder --dir",
         "start": "electron ."
@@ -217,7 +217,7 @@ with open(package_lock_json_path, 'r') as file:
 
     # Update values as required
     package_lock_data['name'] = args.appname
-    package_lock_data['version']: "1.0.0"
+    package_lock_data['version'] = "1.0.0"
     if 'packages' in package_lock_data:
         package_lock_data['packages'][""].update({
             "name": args.appname,
@@ -276,20 +276,10 @@ shutil.copy(os.path.join(template_dir, 'AppRun'), appimage_dir)
 # Copy and rename icon
 shutil.copy(os.path.join(app_dir, 'icon.png'), os.path.join(appimage_dir, f"{app_name_lower}.png"))
 
-# Create desktop file content with conditional uninstall option
-uninstall_option = ""
-if uninstall_appimage_exists():
-    uninstall_option = """
-Actions=Uninstall;
-
-[Desktop Action Uninstall]
-Name=Uninstall Application
-Exec=uninstall_appimage {}
-""".format(app_name_lower)
-
+# Create desktop file content within AppDir
 desktop_content = f"""[Desktop Entry]
 Name={args.appname}
-Comment={args.appname} Electron web application wrapper.Github: 
+Comment={args.appname} Electron web application wrapper. Github:https://github.com/kem-a/e-webapp
 GenericName={args.appname} Electron Application
 Terminal=false
 Type=Application
@@ -300,29 +290,48 @@ StartupWMClass=e-webapp-{app_name_lower}
 StartupNotify=true
 X-GNOME-UsesNotifications=true
 Exec={app_name_lower} %U
-{uninstall_option}
 """
-
 
 desktop_file_path = os.path.join(appimage_dir, f"{args.appname}.desktop")
 with open(desktop_file_path, 'w') as desktop_file:
     desktop_file.write(desktop_content)
 
+# Prepare Desktop file that will be installed in user home dorectory
 # Copy the desktop file to the current app directory
 desktop_file_dest_path = os.path.join(app_dir, f"{args.appname}.desktop")
 shutil.copy(desktop_file_path, desktop_file_dest_path)
 
-# Read the content of the copied .desktop file
+# Check for the uninstall_appimage binary and prepare the uninstall action content if necessary
+uninstall_option = ""
+if uninstall_appimage_exists():
+    uninstall_option = f"""
+Actions=Uninstall;
+
+[Desktop Action Uninstall]
+Name=Uninstall Application
+Exec=uninstall_appimage {args.appname}
+"""
+
+# Read and modify the existing .desktop file content
 with open(desktop_file_dest_path, 'r') as file:
     lines = file.readlines()
+
+# Remove any existing Exec= lines
 lines = [line for line in lines if not line.startswith('Exec=')]
 
 # Define the new Exec line based on the --wayland argument
 exec_line = f"Exec=$HOME/Applications/e-webapp-{app_name_lower}.AppImage %U\n"
 if args.wayland:
     exec_line = f"Exec=$HOME/Applications/e-webapp-{app_name_lower}.AppImage --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform-hint=auto --no-sandbox %U\n"
+
 # Append the new Exec line
 lines.append(exec_line)
+
+# Append the uninstall action if applicable
+if uninstall_option:
+    lines.append(uninstall_option)
+
+# Write the modified content back to the .desktop file
 with open(desktop_file_dest_path, 'w') as file:
     file.writelines(lines)
 

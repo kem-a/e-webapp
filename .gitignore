@@ -1,3 +1,10 @@
+**/.directory
 .directory
-templates/.directory
-resources/.directory
+.vscode
+__pycache__
+apps
+node_modules
+package.json
+package-lock.json
+webpage_meta.json
+

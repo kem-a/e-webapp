@@ -52,6 +52,7 @@ get_webpage_metadata(args.webaddress)       # get metadata
 
 # Define directories
 electron_dir = os.path.dirname(os.path.abspath(__file__))
+home_dir = os.environ.get('HOME')
 app_dir = os.path.join(electron_dir, 'apps', args.appname.lower())
 template_dir = os.path.join(electron_dir, 'templates')
 node_modules_path = os.path.join(electron_dir, 'node_modules')
@@ -339,9 +340,9 @@ with open(desktop_file_dest_path, 'r') as file:
 lines = [line for line in lines if not line.startswith('Exec=')]
 
 # Define the new Exec line based on the --wayland argument
-exec_line = f"Exec=$HOME/Applications/e-webapp-{app_name_lower}.AppImage %U\n"
+exec_line = f"Exec={home_dir}/Applications/e-webapp-{app_name_lower}.AppImage %U\n"
 if args.wayland:
-    exec_line = f"Exec=$HOME/Applications/e-webapp-{app_name_lower}.AppImage --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform-hint=auto --no-sandbox %U\n"
+    exec_line = f"Exec={home_dir}/Applications/e-webapp-{app_name_lower}.AppImage --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform-hint=auto --no-sandbox %U\n"
 
 # Append the new Exec line
 lines.append(exec_line)

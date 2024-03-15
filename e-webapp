@@ -173,6 +173,7 @@ config_content = config_template.format(
     adblocker=str(args.adblocker).lower(),
     single_instance=str(args.single_instance).lower(),
     inject_css=str(args.inject_css).lower(),
+    inject_js=str(args.inject_js).lower(),
     user_agent=args.user_agent
 )
 

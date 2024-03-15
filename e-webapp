@@ -185,25 +185,27 @@ package_json_path = os.path.join(app_dir, 'package.json')
 with open(package_json_path, 'r') as file:
     package_data = json.load(file)
 
-# Update values as required
-package_data['name'] = args.appname
-package_data['description'] = f"{args.appname} web client built with electron"
-package_data['scripts'] = {
-    "pack": "electron-builder --dir",
-    "start": "electron ."
-}
-package_data['author'] = "Arnis Kemlers"
-package_data['license'] = "MIT"
-package_data['build'] = {
-    "appId": f"e-webapp-{args.appname.lower()}",
-    "linux": {
-        "target": "AppImage",
-        "category": "Network"
-    },
-    "directories": {
-        "output": "dist"
+    # Update values as required
+    package_data['name'] = args.appname
+    package_data['description'] = f"{args.appname} web client built with electron"
+    package_data['version']: "1.0.0"
+    package_data['main']: "index.js"
+    package_data['scripts'] = {
+        "pack": "electron-builder --dir",
+        "start": "electron ."
     }
-}
+    package_data['author'] = "Arnis Kemlers"
+    package_data['license'] = "MIT"
+    package_data['build'] = {
+        "appId": f"e-webapp-{args.appname.lower()}",
+        "linux": {
+            "target": "AppImage",
+            "category": "Network"
+        },
+        "directories": {
+            "output": "dist"
+        }
+    }
 # Write the updated data back to package.json
 with open(package_json_path, 'w') as file:
     json.dump(package_data, file, indent=2)
@@ -213,13 +215,15 @@ package_lock_json_path = os.path.join(app_dir, 'package-lock.json')
 with open(package_lock_json_path, 'r') as file:
     package_lock_data = json.load(file)
 
-# Update values as required
-package_lock_data['name'] = args.appname
-if 'packages' in package_lock_data:
-    package_lock_data['packages'][""].update({
-        "name": args.appname,
-        "license": "MIT"
-    })
+    # Update values as required
+    package_lock_data['name'] = args.appname
+    package_lock_data['version']: "1.0.0"
+    if 'packages' in package_lock_data:
+        package_lock_data['packages'][""].update({
+            "name": args.appname,
+            "version": "1.0.0",
+            "license": "MIT"
+        })
 
 # Write the updated data back to package-lock.json
 with open(package_lock_json_path, 'w') as file:

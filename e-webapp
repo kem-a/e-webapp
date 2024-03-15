@@ -346,7 +346,8 @@ if args.install:
 
     # Build the AppImage
     os.chdir(app_dir)
-    subprocess.run(['appimagetool', appimage_dir, os.path.join(app_dir, appimage_file_name)], check=True)
+    appimagetool_path = os.path.join(electron_dir, 'resources', 'appimagetool') 
+    subprocess.run([appimagetool_path, appimage_dir, os.path.join(app_dir, appimage_file_name)], check=True)
 
     # Define install paths
     applications_dir = os.path.expanduser('~/Applications')

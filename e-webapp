@@ -1,0 +1,375 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+
+import argparse
+import os
+import shutil
+import subprocess
+import json
+import re
+import cairosvg
+from e_webapp_subfunctions import update_easylist_if_needed, get_webpage_metadata, get_default_icon
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Build a web Electron wrapper application.')
+parser.add_argument('-w', '--webaddress', required=True, help='The web address to wrap')
+parser.add_argument('-n', '--appname', required=True, help='The name of the app')
+parser.add_argument('-i', '--icon', help='Path to the icon (PNG only)')
+parser.add_argument('-t', '--trayicon', default='', help='Path to the tray icon (PNG only, optional)')
+parser.add_argument('-u', '--user-agent', choices=['chrome', 'edge', 'safari', 'honest'], default='chrome', help='User agent (optional)')
+parser.add_argument('-c', '--inject-css', action='store_true', help='Inject custom CSS (boolean, optional)')
+parser.add_argument('-j', '--inject-js', action='store_true', help='Inject custom JavaScript (boolean, optional)')
+parser.add_argument('-b', '--adblocker', action='store_true', help='Enable adblocker (default: disabled)')
+parser.add_argument('-e', '--main-menu', action='store_true', default=False, help='Hide main app menu, unhide with Alt. (default: disabled)')
+parser.add_argument('-m', '--context-menu', action='store_true', default=True, help='Disable context menu (default: enabled)')
+parser.add_argument('-s', '--single-instance', action='store_true', help='Enable single instance (boolean, optional)')
+parser.add_argument('--wayland', action='store_true', help='Force Wayland window rendering')
+parser.add_argument('--install', action='store_true', help='Build and install the AppImage and desktop file (Linux only)')
+parser.add_argument('--debug', action='store_true', help='Keep {appName} build directory for debugging')
+
+
+###################
+# PRELOAD FUNCTIONS AND SCRIPTS
+#####
+
+args = parser.parse_args()
+
+# Cleanup App name
+appname_processed = args.appname.split(' - ')[0]
+words = appname_processed.split()
+if len(words) > 3:
+    appname_processed = ' '.join(words[:3])
+appname_processed = appname_processed.replace(' ', '_')
+appname_processed = re.sub(r'[^\w-]', '', appname_processed)
+args.appname = appname_processed
+
+update_easylist_if_needed()                 # update easylist.txt file if older than 10 days
+get_webpage_metadata(args.webaddress)       # get metadata
+
+###################
+# BUILDING ELECTRON APP
+#####
+
+# Define directories
+electron_dir = os.path.dirname(os.path.abspath(__file__))
+app_dir = os.path.join(electron_dir, 'apps', args.appname.lower())
+template_dir = os.path.join(electron_dir, 'templates')
+node_modules_path = os.path.join(electron_dir, 'node_modules')
+
+# Check if the 'node_modules' folder does not exist
+if not os.path.exists(node_modules_path):
+    print("electron directory not found. First time run? Installing necessary packages...")
+    npm_commands = [
+        "toolbox run npm install electron --save-dev",
+        "toolbox run npm install electron-builder --save-dev",
+        "toolbox run npm install --save electron-window-state",
+        "toolbox run npm install --save @cliqz/adblocker-electron"
+    ]
+    for cmd in npm_commands:
+        subprocess.run(cmd, shell=True, check=True)
+    print("Necessary npm packages have been installed.")
+
+# Create or reset the app directory
+if os.path.exists(app_dir):
+    shutil.rmtree(app_dir)
+os.makedirs(app_dir)
+
+# Create symlinks to 'node_modules' and 'resources'
+for folder in ['node_modules', 'resources']:
+    src = os.path.join('..', '..', folder)
+    dst = os.path.join(app_dir, folder)
+    os.symlink(src, dst)
+
+# Copy necessary files
+for file in ['index.js', 'package-lock.json', 'package.json']:
+    if file in ['package-lock.json', 'package.json']:
+        src = os.path.join(electron_dir, file)
+    else:
+        src = os.path.join(template_dir, file)
+    dst = app_dir
+    shutil.copy(src, dst)
+
+# Copy and rename ICONS
+# Function to find any icon
+def find_any_icon(app_name, search_paths):
+    for base_path in search_paths:
+        for dirpath, dirnames, files in os.walk(base_path):
+            for file in files:
+                if file.lower().startswith(app_name.lower()):
+                    return os.path.join(dirpath, file)
+    return None
+
+# Function to convert to PNG
+def convert_to_png(source_path, app_name, app_dir):
+    # Ensure target directory exists
+    if not os.path.exists(app_dir):
+        os.makedirs(app_dir, exist_ok=True)
+    target_path = os.path.join(app_dir, "icon.png")
+    try:
+        cairosvg.svg2png(url=source_path, write_to=target_path)
+        print(f"Icon converted to PNG and saved to: {target_path}")
+    except Exception as e:
+        print(f"Error converting image to PNG: {e}")
+
+# Check if --icon is not provided
+if not args.icon:
+    app_name_lower = args.appname.lower()  # Assuming preprocessing has been applied
+    search_paths = [
+        os.path.expanduser("~/.local/share/icons/"),
+        "/usr/share/icons/hicolor/256x256/apps/",
+        "/usr/share/icons/hicolor/128x128/apps/",
+        "/usr/share/pixmaps/"
+    ]
+    found_icon_path = find_any_icon(app_name_lower, search_paths)
+    if found_icon_path:
+        print(f"Icon found: {found_icon_path}")
+        if not found_icon_path.endswith('.png'):
+            # Convert to PNG if necessary. Ensure app_dir is defined as your app's directory path
+            convert_to_png(found_icon_path, app_name_lower, app_dir)
+        else:
+            # If it's already a PNG, just copy it to the desired location
+            target_icon_path = os.path.join(app_dir, f"{app_name_lower}/icon.png")
+            shutil.copy(found_icon_path, target_icon_path)
+            print(f"Icon copied to: {target_icon_path}")
+    else:
+        print("Icon not found on the host machine.")
+        # Try to get icon from web or copy default from templates
+        get_default_icon(electron_dir, app_dir, template_dir)
+else:
+    # Logic to handle a manually provided icon path
+    # For example, copying the specified icon to the app's directory
+    if os.path.isfile(args.icon):
+        shutil.copy(args.icon, os.path.join(app_dir, 'icon.png'))
+        print(f"Manually specified icon copied to: {os.path.join(app_dir, 'icon.png')}")
+    else:
+        print("Specified icon path does not exist.")
+
+if args.trayicon:
+    shutil.copy(args.trayicon, os.path.join(app_dir, 'trayicon.png'))
+
+# Generate config.js
+config_template = """
+module.exports = {{
+    webPath: '{webaddress}',
+    appName: '{appname}',
+    appIcon: 'icon.png',
+    trayIconName: '{trayicon}',
+    mainMenuHidden: '{main_menu}',
+    shouldShowContextMenu: {context_menu},
+    enableAdBlocker: {adblocker},
+    enforceSingleInstance: {single_instance},
+    injectCustomCSS: {inject_css},
+    injectCustomJS: {inject_js},
+    userAgentString: '{user_agent}'
+}};
+"""
+
+config_content = config_template.format(
+    webaddress=args.webaddress,
+    appname=args.appname,
+    trayicon='trayicon.png' if args.trayicon else '',
+    main_menu=str(args.main_menu).lower(),
+    context_menu=str(args.context_menu).lower(),
+    adblocker=str(args.adblocker).lower(),
+    single_instance=str(args.single_instance).lower(),
+    inject_css=str(args.inject_css).lower(),
+    user_agent=args.user_agent
+)
+
+with open(os.path.join(app_dir, 'config.js'), 'w') as config_file:
+    config_file.write(config_content)
+
+# Load and update package.json
+package_json_path = os.path.join(app_dir, 'package.json')
+with open(package_json_path, 'r') as file:
+    package_data = json.load(file)
+
+# Update values as required
+package_data['name'] = args.appname
+package_data['description'] = f"{args.appname} web client built with electron"
+package_data['scripts'] = {
+    "pack": "electron-builder --dir",
+    "start": "electron ."
+}
+package_data['author'] = "Arnis Kemlers"
+package_data['license'] = "MIT"
+package_data['build'] = {
+    "appId": f"e-webapp-{args.appname.lower()}",
+    "linux": {
+        "target": "AppImage",
+        "category": "Network"
+    },
+    "directories": {
+        "output": "dist"
+    }
+}
+# Write the updated data back to package.json
+with open(package_json_path, 'w') as file:
+    json.dump(package_data, file, indent=2)
+
+# Load and update package-lock.json
+package_lock_json_path = os.path.join(app_dir, 'package-lock.json')
+with open(package_lock_json_path, 'r') as file:
+    package_lock_data = json.load(file)
+
+# Update values as required
+package_lock_data['name'] = args.appname
+if 'packages' in package_lock_data:
+    package_lock_data['packages'][""].update({
+        "name": args.appname,
+        "license": "MIT"
+    })
+
+# Write the updated data back to package-lock.json
+with open(package_lock_json_path, 'w') as file:
+    json.dump(package_lock_data, file, indent=2)
+
+# Navigate to the app directory and run the build command using toolbox
+try:
+    os.chdir(app_dir)
+    subprocess.run(['toolbox', 'run', 'npm', 'run', 'pack'], check=True)
+    print(f"Successfully built the Electron app: {args.appname}")
+except subprocess.CalledProcessError as e:
+    print(f"Error during build process: {e}")
+
+
+####################
+# PREPARING APPIMAGE FOLDER
+######
+
+# check for uninstall_appimage binary in $PATH to integrate uninstall function
+def uninstall_appimage_exists():
+    for path in os.environ["PATH"].split(os.pathsep):
+        full_path = os.path.join(path, "uninstall_appimage")
+        if os.path.isfile(full_path) and os.access(full_path, os.X_OK):
+            return True
+    return False
+
+# Assuming 'args' is already defined from the argparse setup
+app_name_lower = args.appname.lower()
+
+# Directory paths
+app_dir_path = os.path.join(app_dir, app_name_lower)
+appimage_dir = f"{app_name_lower}.AppDir"
+usr_dir = os.path.join(appimage_dir, 'usr')
+bin_dir = os.path.join(usr_dir, 'bin')
+lib64_dir = os.path.join(usr_dir, 'lib64')
+
+# Create directories
+os.makedirs(bin_dir, exist_ok=True)
+
+# Move 'dist/linux-unpacked' to '{appName}.AppDir/usr' and rename it to 'lib64'
+dist_path = os.path.join(app_dir, 'dist', 'linux-unpacked')
+os.rename(dist_path, lib64_dir)
+
+# Create symlink in 'bin' folder
+os.symlink(os.path.join('..', 'lib64', app_name_lower), os.path.join(bin_dir, app_name_lower))
+
+# Copy 'AppRun' to AppDir
+shutil.copy(os.path.join(template_dir, 'AppRun'), appimage_dir)
+
+# Copy and rename icon
+shutil.copy(os.path.join(app_dir, 'icon.png'), os.path.join(appimage_dir, f"{app_name_lower}.png"))
+
+# Create desktop file content with conditional uninstall option
+uninstall_option = ""
+if uninstall_appimage_exists():
+    uninstall_option = """
+Actions=Uninstall;
+
+[Desktop Action Uninstall]
+Name=Uninstall Application
+Exec=uninstall_appimage {}
+""".format(app_name_lower)
+
+desktop_content = f"""[Desktop Entry]
+Name={args.appname}
+Comment={args.appname} Electron web application wrapper.Github: 
+GenericName={args.appname} Electron Application
+Terminal=false
+Type=Application
+Icon={app_name_lower}
+Categories=Network;Qt;GTK;
+Keywords={args.appname},electron,kemm-a,e-webapp
+StartupWMClass=e-webapp-{app_name_lower}
+StartupNotify=true
+X-GNOME-UsesNotifications=true
+Exec={app_name_lower} %U
+{uninstall_option}
+"""
+
+
+desktop_file_path = os.path.join(appimage_dir, f"{args.appname}.desktop")
+with open(desktop_file_path, 'w') as desktop_file:
+    desktop_file.write(desktop_content)
+
+# Copy the desktop file to the current app directory
+desktop_file_dest_path = os.path.join(app_dir, f"{args.appname}.desktop")
+shutil.copy(desktop_file_path, desktop_file_dest_path)
+
+# Read the content of the copied .desktop file
+with open(desktop_file_dest_path, 'r') as file:
+    lines = file.readlines()
+lines = [line for line in lines if not line.startswith('Exec=')]
+
+# Define the new Exec line based on the --wayland argument
+exec_line = f"Exec=$HOME/Applications/e-webapp-{app_name_lower}.AppImage %U\n"
+if args.wayland:
+    exec_line = f"Exec=$HOME/Applications/e-webapp-{app_name_lower}.AppImage --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform-hint=auto --no-sandbox %U\n"
+# Append the new Exec line
+lines.append(exec_line)
+with open(desktop_file_dest_path, 'w') as file:
+    file.writelines(lines)
+
+
+####################
+# BUILDING AND DEPLOYING APPIMAGE
+#####
+
+if args.install:
+    # Define the AppImage file name
+    appimage_file_name = f"e-webapp-{app_name_lower}.AppImage"
+
+    # Build the AppImage
+    os.chdir(app_dir)
+    subprocess.run(['appimagetool', appimage_dir, os.path.join(app_dir, appimage_file_name)], check=True)
+
+    # Define install paths
+    applications_dir = os.path.expanduser('~/Applications')
+    local_applications_dir = os.path.expanduser('~/.local/share/applications')
+
+    # Ensure the target directories exist
+    os.makedirs(applications_dir, exist_ok=True)
+    os.makedirs(local_applications_dir, exist_ok=True)
+
+    # Define the paths for the AppImage and .desktop file in the source directory
+    appimage_source_path = os.path.join(app_dir, appimage_file_name)
+    desktop_source_path = os.path.join(app_dir, f"{args.appname}.desktop")
+
+    # Define the destination paths
+    appimage_destination_path = os.path.join(applications_dir, appimage_file_name)
+    desktop_destination_path = os.path.join(local_applications_dir, f"{args.appname}.desktop")
+
+    # Move the AppImage to ~/Applications, overwrite if exists
+    if os.path.exists(appimage_destination_path):
+        os.remove(appimage_destination_path)
+    shutil.move(appimage_source_path, applications_dir)
+
+    # Move the desktop file to ~/.local/share/applications/, overwrite if exists
+    if os.path.exists(desktop_destination_path):
+        os.remove(desktop_destination_path)
+    shutil.move(desktop_source_path, local_applications_dir)
+
+    print(f"{args.appname} installed successfully.")
+
+
+####################
+# DEBUG SECTION. KEEP BUILD DIR FOR DEBUGGING
+#####
+
+if args.install and not args.debug:
+    # Delete the entire {appName} directory and all its content
+    shutil.rmtree(app_dir)
+else:
+    if args.debug:
+        print(f"Debug mode is active. The directory {app_dir} will not be deleted.")

@@ -229,10 +229,29 @@ with open(package_lock_json_path, 'r') as file:
 with open(package_lock_json_path, 'w') as file:
     json.dump(package_lock_data, file, indent=2)
 
-# Navigate to the app directory and run the build command using toolbox
+# Function to check if npm command is installed and is executable
+def command_exists(cmd):
+    return any(os.access(os.path.join(path, cmd), os.X_OK) for path in os.environ["PATH"].split(os.pathsep))
+
 try:
     os.chdir(app_dir)
-    subprocess.run(['toolbox', 'run', 'npm', 'run', 'pack'], check=True)
+    if command_exists('npm'):
+        # Directly use npm if it's available
+        subprocess.run(['npm', 'run', 'pack'], check=True)
+    elif command_exists('toolbox'):
+        # Check if npm is available inside toolbox
+        try:
+            subprocess.run(['toolbox', 'run', 'which', 'npm'], check=True)
+            # If we get here, npm is available inside toolbox
+            subprocess.run(['toolbox', 'run', 'npm', 'run', 'pack'], check=True)
+        except subprocess.CalledProcessError:
+            # npm is not available inside toolbox
+            print("npm is not installed inside toolbox.")
+            sys.exit("npm was not found. Please install npm.")
+    else:
+        # Neither npm nor toolbox with npm is available
+        sys.exit("npm was not found. Please install npm.")
+    
     print(f"Successfully built the Electron app: {args.appname}")
 except subprocess.CalledProcessError as e:
     print(f"Error during build process: {e}")

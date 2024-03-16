@@ -1,6 +1,6 @@
 # Electron Web Application Wrapper
 
-## Make any web page to standalone native application
+## Transform any web page to standalone native application
 
 This project provides a script to create a web wrapper application using Electron. It's designed to encapsulate a web address into a standalone desktop application, enhancing usability and integration with desktop environments.
 

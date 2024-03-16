@@ -1,7 +1,19 @@
-# Electron Web Wrapper Application
+# Electron Web Application Wrapper
+
+## Make any web page to standalone native application
 
 This project provides a script to create a web wrapper application using Electron. It's designed to encapsulate a web address into a standalone desktop application, enhancing usability and integration with desktop environments.
 
+## Usage
+
+Use the script to build your Electron app with the desired web address and app name.
+
+   ```sh
+   ./e-webapp --webaddress "https://example.com" --appname "ExampleApp" --install
+   ```
+
+   Replace `https://example.com` with the web address you want to wrap and `"ExampleApp"` with your desired application name.
+   
 ## Features
 
 - **Web to Desktop Conversion**: Easily convert any web address into a desktop application.
@@ -17,8 +29,8 @@ This project provides a script to create a web wrapper application using Electro
 
 - Python 3
 - Node.js and npm
-- Electron and Electron-builder
 - cairosvg (for icon conversion)
+- bs4 (beautiful soup)
 
 ## Setup and Installation
 
@@ -28,18 +40,23 @@ This project provides a script to create a web wrapper application using Electro
    git clone <repository-url>
    cd <repository-name>
    ```
-2. **Install Dependencies**: Make sure you have Node.js and npm installed, then run:
+2. **Install Dependencies**:
+
+   **Fedora** and derivatives
 
    ```sh
-   npm install
+   sudo dnf install npm
    ```
-3. **Running the Script**: Use the script to build your Electron app with the desired web address and app name.
-
+   Debian and **Ubuntu** derivatives
+   
    ```sh
-   ./e-webapp --webaddress "https://example.com" --appname "ExampleApp" --install
+   sudo apt install npm
+   ```
+   Install **python** modules
+   ```sh
+   pip install cairosvg bs4
    ```
 
-   Replace `https://example.com` with the web address you want to wrap and `"ExampleApp"` with your desired application name.
 
 ## Command Line Arguments
 

@@ -13,7 +13,6 @@ function buildContextMenu(mainWindow) {
             click: () => mainWindow.webContents.replaceMisspelling(suggestion)
           }));
         });
-        // Add the 'Add to Dictionary' option if there's a misspelled word.
         if (params.misspelledWord) {
           contextMenu.append(new MenuItem({ 
             label: 'Add to Dictionary', 
@@ -28,17 +27,25 @@ function buildContextMenu(mainWindow) {
       contextMenu.append(new MenuItem({ label: 'Cut', role: 'cut', accelerator: 'CmdOrCtrl+X' }));
       contextMenu.append(new MenuItem({ label: 'Copy', role: 'copy', accelerator: 'CmdOrCtrl+C' }));
       contextMenu.append(new MenuItem({ label: 'Paste', role: 'paste', accelerator: 'CmdOrCtrl+V' }));
-      contextMenu.append(new MenuItem({ label: 'Delete', role: 'delete' })); // No default accelerator
+      contextMenu.append(new MenuItem({ label: 'Delete', role: 'delete' }));
       contextMenu.append(new MenuItem({ label: 'Select All', role: 'selectAll', accelerator: 'CmdOrCtrl+A' }));
+    } else if (params.linkURL) {
+      // Context menu for links
+      contextMenu.append(new MenuItem({ 
+        label: 'Copy Link', 
+        click: () => clipboard.writeText(params.linkURL) 
+      }));
+      contextMenu.append(new MenuItem({ 
+        label: 'Open Link in Browser', 
+        click: () => shell.openExternal(params.linkURL) 
+      }));
     } else {
-      // Context menu for general page
+      // Default context menu
       contextMenu.append(new MenuItem({ label: 'Back', click: () => mainWindow.webContents.goBack(), accelerator: 'Alt+Left' }));
       contextMenu.append(new MenuItem({ label: 'Forward', click: () => mainWindow.webContents.goForward(), accelerator: 'Alt+Right' }));
       contextMenu.append(new MenuItem({ label: 'Reload', click: () => mainWindow.webContents.reload(), accelerator: 'CmdOrCtrl+R' }));
       contextMenu.append(new MenuItem({ type: 'separator' }));
-      contextMenu.append(new MenuItem({ label: 'Copy', role: 'copy', accelerator: 'CmdOrCtrl+C' }));
-      contextMenu.append(new MenuItem({ label: 'Copy Link', click: () => clipboard.writeText(mainWindow.webContents.getURL()) })); // No default accelerator
-      contextMenu.append(new MenuItem({ label: 'Open Link in Browser', click: () => shell.openExternal(mainWindow.webContents.getURL()) })); // No default accelerator
+      contextMenu.append(new MenuItem({ label: 'Copy Page URL', click: () => clipboard.writeText(mainWindow.webContents.getURL()) }));
       contextMenu.append(new MenuItem({ label: 'Open page in Browser', click: () => shell.openExternal(mainWindow.webContents.getURL()) })); // No default accelerator
     }
 

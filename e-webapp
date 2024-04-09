@@ -57,15 +57,38 @@ app_dir = os.path.join(electron_dir, 'apps', args.appname.lower())
 resources_dir = os.path.join(electron_dir, 'resources')
 node_modules_path = os.path.join(electron_dir, 'node_modules')
 
+# npm check logic
+def check_npm():
+    return shutil.which('npm') is not None
+
+def check_toolbox_npm():
+    try:
+        result = subprocess.run(['toolbox', 'run', 'which', 'npm'], stdout=subprocess.PIPE)
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+
 # Check if the 'node_modules' folder does not exist
 if not os.path.exists(node_modules_path):
     print("electron directory not found. First time run? Installing necessary packages...")
     npm_commands = [
-        "toolbox run npm install electron --save-dev",
-        "toolbox run npm install electron-builder --save-dev",
-        "toolbox run npm install --save electron-window-state",
-        "toolbox run npm install --save @cliqz/adblocker-electron"
+    "npm install electron --save-dev",
+    "npm install electron-builder --save-dev",
+    "npm install --save electron-window-state",
+    "npm install --save @cliqz/adblocker-electron"
     ]
+    
+    if check_npm():
+        print("npm exists on host system.")
+    elif check_toolbox_npm():
+        print("npm exists in toolbox.")
+        npm_commands = ["toolbox run " + cmd for cmd in npm_commands]
+    else:
+        print("npm does not exist on host system or in toolbox. Please install npm and nodejs.")
+        exit(1)
+
     for cmd in npm_commands:
         subprocess.run(cmd, shell=True, check=True)
     print("Necessary npm packages have been installed.")

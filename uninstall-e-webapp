@@ -1,0 +1,54 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+import os
+import shutil
+import argparse
+import glob
+import subprocess
+
+def delete_app_folder(appname):
+    app_name_lower = appname.lower()
+    app_folder_path = os.path.expanduser(f'~/.local/share/e-webapp/e-webapp-{app_name_lower}')
+    if os.path.exists(app_folder_path):
+        shutil.rmtree(app_folder_path)
+        print(f"Deleted app folder: {app_folder_path}")
+    else:
+        print(f"App folder not found: {app_folder_path}")
+
+def delete_desktop_file(appname):
+    desktop_file_pattern = os.path.expanduser(f'~/.local/share/applications/{appname}*.desktop')
+    desktop_files = glob.glob(desktop_file_pattern, recursive=True)
+    if desktop_files:
+        for desktop_file_path in desktop_files:
+            os.remove(desktop_file_path)
+            print(f"Deleted desktop file: {desktop_file_path}")
+    else:
+        print(f"Desktop file not found: {desktop_file_pattern}")
+
+def delete_cache_file(appname):
+    app_name_lower = appname.lower()
+    cache_file_path = os.path.expanduser(f'~/.config/e-webapp-{app_name_lower}')
+    if os.path.exists(cache_file_path):
+        shutil.rmtree(cache_file_path)
+        print(f"Deleted cache file: {cache_file_path}")
+    else:
+        print(f"Cache file not found: {cache_file_path}")
+
+def send_notification(appname):
+    notification_title = "Uninstallation Complete"
+    notification_body = f"{appname} has been successfully uninstalled."
+    timeout = 5000  # Timeout in milliseconds (5 seconds)
+    subprocess.run(['e-webapp', '-t', str(timeout), notification_title, notification_body])
+
+def main():
+    parser = argparse.ArgumentParser(description='Uninstall e-webapp.')
+    parser.add_argument('-n', '--appname', required=True, help='The name of the app to uninstall')
+    args = parser.parse_args()
+
+    delete_app_folder(args.appname)
+    delete_desktop_file(args.appname)
+    delete_cache_file(args.appname)
+    send_notification(args.appname)
+
+if __name__ == "__main__":
+    main()

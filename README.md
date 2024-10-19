@@ -27,38 +27,28 @@ Replace `https://example.com` with the web address you want to wrap and `"Exampl
 
 ## Prerequisites
 
-- Python 3
+- Python3
 - Node.js and npm
 - cairosvg (for icon conversion)
 - bs4 (beautiful soup)
 
 ## Setup and Installation
 
-1. **Clone the Repository**: Start by cloning this repository to your local machine.
+**Clone the Repository**
 
-   ```sh
-   git clone <repository-url>
-   cd <repository-name>
-   ```
-2. **Install Dependencies**:
+```sh
+git clone <repository-url>
+cd <repository-name>
+```
 
-   **Fedora** and derivatives
+**Install Dependencies**
 
-   ```sh
-   sudo dnf install npm
-   ```
+```sh
+npm
+cairosvg
+bs4
+```
 
-   Debian and **Ubuntu** derivatives
-
-   ```sh
-   sudo apt install npm
-   ```
-
-   Install **python** modules
-
-   ```sh
-   pip install cairosvg bs4
-   ```
 
 ## Command Line Arguments
 
@@ -69,21 +59,23 @@ The script supports various command line arguments to customize the application 
 - `-i`, `--icon`: Path to the application icon (PNG only).
 - `-t`, `--trayicon`: Path to the tray icon (PNG only, optional).
 - `-u`, `--user-agent`: User agent for the web requests (options: firefox, chrome, edge, safari, honest; default: chrome).
-- `-c`, `--inject-css`: Inject custom CSS (boolean, optional).
-- `-j`, `--inject-js`: Inject custom JavaScript (boolean, optional).
+- `--inject-css`: Inject custom CSS (boolean, optional).
+- `--inject-js`: Inject custom JavaScript (boolean, optional).
 - `-b`, `--adblocker`: Enable the ad blocker (default: disabled).
-- `-e`, `--main-menu`: Hide the main app menu, can be unhidden with Alt (default: disabled).
-- `-m`, `--context-menu`: Disable the context menu (default: enabled).
+- `-m`, `--main-menu`: Hide the main app menu, can be unhidden with Alt (default: visible).
+- `-c`, `--context-menu`: Disable the context menu (default: enabled).
 - `-s`, `--single-instance`: Enable single instance mode (boolean, optional).
+- `e`, `--electron-version`: Specify the Electron version to install (default: latest)
 - `--wayland`: Force Wayland window rendering.
-- `--install`: Build and install the AppImage and desktop file (Linux only).
+- `--install-appimage`: Build and install the AppImage and desktop file (Linux only).
+- `--install`: Install the app and desktop file.
 - `--debug`: Keep the build directory for debugging.
 
 For more detailed information on each argument, type `--help` when running the script.
 
 ## Building the AppImage
 
-After running the script with the `--install` flag, an AppImage and a `.desktop` file for your application will be generated. You can find these in the `~/Applications` and `~/.local/share/applications/` directories, respectively.
+After running the script with the `--install-appimage` flag, an AppImage and a `.desktop` file for your application will be generated. You can find these in the `~/Applications` and `~/.local/share/applications/` directories, respectively.
 
 ## Debugging
 

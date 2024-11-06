@@ -3,6 +3,7 @@
 import os
 import shutil
 import subprocess
+from scripts.build_appimage import build_appimage
 
 ####################
 # PREPARING APPIMAGE FOLDER
@@ -107,38 +108,35 @@ def build_and_deploy_appimage(args, electron_dir, app_dir):
     app_name_lower = args.appname.lower()
     appimage_dir = f"{app_name_lower}.AppDir"
     appimage_file_name = f"e-webapp-{app_name_lower}.AppImage"
-
+    build_dir = os.path.join(electron_dir, "build")
+    output_file = os.path.join(app_dir, appimage_file_name)
+    
     # Build the AppImage
-    os.chdir(app_dir)
-    appimagetool_path = os.path.join(electron_dir, 'build', 'appimagetool') 
-    subprocess.run([appimagetool_path, appimage_dir, os.path.join(app_dir, appimage_file_name)], check=True)
-
+    build_appimage(appimage_dir, output_file, build_dir)
+    
     # Define install paths
     applications_dir = os.path.expanduser('~/Applications')
     local_applications_dir = os.path.expanduser('~/.local/share/applications')
-
+    
     # Ensure the target directories exist
     os.makedirs(applications_dir, exist_ok=True)
     os.makedirs(local_applications_dir, exist_ok=True)
-
-    # Define the paths for the AppImage and .desktop file in the source directory
-    appimage_source_path = os.path.join(app_dir, appimage_file_name)
+    
+    # Define paths
     desktop_source_path = os.path.join(app_dir, f"{args.appname}.desktop")
-
-    # Define the destination paths
     appimage_destination_path = os.path.join(applications_dir, appimage_file_name)
     desktop_destination_path = os.path.join(local_applications_dir, f"{args.appname}.desktop")
 
-    # Move the AppImage to ~/Applications, overwrite if exists
+    # Move the AppImage to ~/Applications
     if os.path.exists(appimage_destination_path):
         os.remove(appimage_destination_path)
-    shutil.move(appimage_source_path, applications_dir)
-
-    # Move the desktop file to ~/.local/share/applications/, overwrite if exists
+    shutil.move(output_file, applications_dir)
+    
+    # Move the desktop file
     if os.path.exists(desktop_destination_path):
         os.remove(desktop_destination_path)
     shutil.move(desktop_source_path, local_applications_dir)
-
+    
     print(f"{args.appname} installed successfully.")
 
 def handle_debug(args, app_dir):

@@ -81,7 +81,7 @@ if not os.path.exists(node_modules_path):
         f"npm install electron{electron_version} --save-dev",
         "npm install electron-builder --save-dev",
         "npm install --save electron-window-state",
-        "npm install --save @ghostery/adblocker"
+        "npm install --save @ghostery/adblocker-electron"
     ]
     
     if check_npm():

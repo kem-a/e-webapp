@@ -41,7 +41,9 @@ def prepare_appimage_folder(args, electron_dir, app_dir, home_dir):
 
     # Copy and rename icon
     shutil.copy(os.path.join(app_dir, 'icon.png'), os.path.join(appimage_dir, f"{app_name_lower}.png"))
-
+    # Create symlink for the icon to .DirIcon
+    os.symlink(f"{app_name_lower}.png", os.path.join(appimage_dir, ".DirIcon"))
+    
     # Create desktop file content within AppDir
     desktop_content = f"""[Desktop Entry]
 Name={args.appname}

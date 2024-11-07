@@ -4,14 +4,16 @@
 import argparse
 import os
 import shutil
-import subprocess
 import json
 import re
+import subprocess
 import sys
 import cairosvg
+import tempfile
 from scripts.e_webapp_subfunctions import update_easylist_if_needed, get_webpage_metadata, get_default_icon
 from scripts.install_appimage import prepare_appimage_folder, build_and_deploy_appimage, handle_debug
 from scripts.install_app import install_app
+from scripts.get_electron import setup_electron  # Add this import
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Build a web Electron wrapper application.')
@@ -60,63 +62,28 @@ electron_dir = os.path.dirname(os.path.abspath(__file__))
 home_dir = os.environ.get('HOME')
 app_dir = os.path.join(electron_dir, 'apps', args.appname.lower())
 resources_dir = os.path.join(electron_dir, 'resources')
-node_modules_path = os.path.join(electron_dir, 'node_modules')
 
-# npm check logic
-def check_npm():
-    return shutil.which('npm') is not None
+# Setup electron and npm packages
+try:
+    setup_electron(app_dir, args.electron_version)
+except Exception as e:
+    sys.exit(f"Error setting up electron: {e}")
 
-def check_toolbox_npm():
-    try:
-        result = subprocess.run(['toolbox', 'run', 'which', 'npm'], stdout=subprocess.PIPE)
-        return result.returncode == 0
-    except Exception:
-        return False
-
-# Check if the 'node_modules' folder does not exist
-if not os.path.exists(node_modules_path):
-    print("electron directory not found. First time run? Installing necessary packages...")
-    electron_version = f"@{args.electron_version}" if args.electron_version else "@latest"
-    npm_commands = [
-        f"npm install electron{electron_version} --save-dev",
-        "npm install electron-builder --save-dev",
-        "npm install --save electron-window-state",
-        "npm install --save @ghostery/adblocker-electron"
-    ]
-    
-    if check_npm():
-        print("npm exists on host system.")
-    elif check_toolbox_npm():
-        print("npm exists in toolbox.")
-        npm_commands = ["toolbox run " + cmd for cmd in npm_commands]
-    else:
-        print("npm does not exist on host system or in toolbox. Please install npm and nodejs.")
-        exit(1)
-
-    for cmd in npm_commands:
-        subprocess.run(cmd, shell=True, check=True)
-    print("Necessary npm packages have been installed.")
-
-# Create or reset the app directory
+# Clean up existing app directory if it exists
 if os.path.exists(app_dir):
     shutil.rmtree(app_dir)
 os.makedirs(app_dir)
 
-# Create symlinks to 'node_modules' and 'resources'
-for folder in ['node_modules', 'resources', 'scripts']:
+# Create symlinks to 'node_modules' (from /tmp) and other resources
+node_modules_src = os.path.join(tempfile.gettempdir(), 'ewebapp_node_modules')
+os.symlink(os.path.join(node_modules_src, 'node_modules'), os.path.join(app_dir, 'node_modules'))
+os.symlink(os.path.join(node_modules_src, 'package-lock.json'), os.path.join(app_dir, 'package-lock.json'))
+
+# Create symlinks for other folders
+for folder in ['resources', 'scripts']:
     src = os.path.join('..', '..', folder)
     dst = os.path.join(app_dir, folder)
     os.symlink(src, dst)
-
-# Copy necessary files
-for file in ['package-lock.json', 'package.json']:
-    src = os.path.join(electron_dir, file)
-
-    # Check if source file exists before copying
-    if not os.path.exists(src):
-        print(f"Error: Required file '{file}' not found in {electron_dir}.")
-        sys.exit("No package.json is found. Exiting...")
-    shutil.copy(src, app_dir)
 
 src = os.path.join(electron_dir, 'src', 'main', 'index.js')
 
@@ -221,6 +188,7 @@ with open(os.path.join(app_dir, 'config.js'), 'w') as config_file:
     config_file.write(config_content)
 
 # Load and update package.json
+shutil.copy(os.path.join(node_modules_src, 'package.json'), app_dir)
 package_json_path = os.path.join(app_dir, 'package.json')
 with open(package_json_path, 'r') as file:
     package_data = json.load(file)
@@ -250,29 +218,11 @@ with open(package_json_path, 'r') as file:
 with open(package_json_path, 'w') as file:
     json.dump(package_data, file, indent=2)
 
-# Load and update package-lock.json
-package_lock_json_path = os.path.join(app_dir, 'package-lock.json')
-with open(package_lock_json_path, 'r') as file:
-    package_lock_data = json.load(file)
-
-    # Update values as required
-    package_lock_data['name'] = args.appname
-    package_lock_data['version'] = "1.0.0"
-    if 'packages' in package_lock_data:
-        package_lock_data['packages'][""].update({
-            "name": args.appname,
-            "version": "1.0.0",
-            "license": "MIT"
-        })
-
-# Write the updated data back to package-lock.json
-with open(package_lock_json_path, 'w') as file:
-    json.dump(package_lock_data, file, indent=2)
-
 # Function to check if npm command is installed and is executable
 def command_exists(cmd):
     return any(os.access(os.path.join(path, cmd), os.X_OK) for path in os.environ["PATH"].split(os.pathsep))
 
+# Build the Electron app
 try:
     os.chdir(app_dir)
     if command_exists('npm'):
@@ -295,7 +245,7 @@ try:
     print(f"Successfully built the Electron app: {args.appname}")
 except subprocess.CalledProcessError as e:
     print(f"Error during build process: {e}")
-
+    
 # Build and deploy AppImage
 if args.install_appimage:
     prepare_appimage_folder(args, electron_dir, app_dir, home_dir)

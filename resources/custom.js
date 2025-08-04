@@ -307,24 +307,24 @@ function runBlockYoutube() {
             if (!obj) {
                 return false;
             }
-            let overriden = false;
+            let overridden = false;
 
             for (const key in obj) {
                 if (obj.hasOwnProperty(key) && key === propertyName) {
                     obj[key] = overrideValue;
-                    overriden = true;
+                    overridden = true;
                 } else if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
                     if (overrideObject(obj[key], propertyName, overrideValue)) {
-                        overriden = true;
+                        overridden = true;
                     }
                 }
             }
 
-            if (overriden) {
+            if (overridden) {
                 console.log(`found: ${propertyName}`);
             }
 
-            return overriden;
+            return overridden;
         };
 
         /**

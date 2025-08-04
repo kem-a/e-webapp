@@ -21,7 +21,7 @@ const userAgents = {
 };
 // Set a global custom user agent for the entire app
 if (config.userAgentString !== "honest") {
-  app.userAgentFallback = userAgents[config.userAgentString] || userAgents.default;
+  app.userAgentFallback = userAgents[config.userAgentString] || userAgents.chrome;
 };
 
 let mainWindow;

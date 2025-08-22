@@ -13,7 +13,7 @@ import tempfile
 from scripts.e_webapp_subfunctions import update_easylist_if_needed, get_webpage_metadata, get_default_icon
 from scripts.install_appimage import prepare_appimage_folder, build_and_deploy_appimage, handle_debug
 from scripts.install_app import install_app
-from scripts.get_electron import setup_electron  # Add this import
+from scripts.get_electron import setup_electron  # Legacy: will be skipped now (kept for compatibility)
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Build a web Electron wrapper application.')
@@ -63,27 +63,34 @@ home_dir = os.environ.get('HOME')
 app_dir = os.path.join(electron_dir, 'apps', args.appname.lower())
 resources_dir = os.path.join(electron_dir, 'resources')
 
-# Setup electron and npm packages
-try:
-    setup_electron(app_dir, args.electron_version)
-except Exception as e:
-    sys.exit(f"Error setting up electron: {e}")
+# We no longer pre-install dependencies into a shared /tmp directory because
+# copying or symlinking that layout caused electron-builder ASAR rejection or
+# broken .bin scripts. We'll generate a fresh package.json and run a local
+# npm install inside the app directory for a clean, self-contained tree.
 
 # Clean up existing app directory if it exists
 if os.path.exists(app_dir):
     shutil.rmtree(app_dir)
 os.makedirs(app_dir)
 
-# Create symlinks to 'node_modules' (from /tmp) and other resources
-node_modules_src = os.path.join(tempfile.gettempdir(), 'ewebapp_node_modules')
-os.symlink(os.path.join(node_modules_src, 'node_modules'), os.path.join(app_dir, 'node_modules'))
-os.symlink(os.path.join(node_modules_src, 'package-lock.json'), os.path.join(app_dir, 'package-lock.json'))
+"""
+Previously this script created symlinks into a shared temporary npm install
+directory (e.g. /tmp/ewebapp_node_modules). electron-builder rejects any
+symlink whose real path points outside the application directory when
+packing ASAR archives, which caused the build failures seen in debug.log.
 
-# Create symlinks for other folders
+Fix: materialize (copy) the dependency tree and required resource/script
+directories into the app directory so no external symlinks remain.
+"""
+
+# Copy resources and scripts (physical copies, no symlinks)
+def copytree_clean(src, dst):
+    if os.path.exists(dst):
+        shutil.rmtree(dst)
+    shutil.copytree(src, dst, symlinks=False)
+
 for folder in ['resources', 'scripts']:
-    src = os.path.join('..', '..', folder)
-    dst = os.path.join(app_dir, folder)
-    os.symlink(src, dst)
+    copytree_clean(os.path.join(electron_dir, folder), os.path.join(app_dir, folder))
 
 src = os.path.join(electron_dir, 'src', 'main', 'index.js')
 
@@ -152,7 +159,18 @@ else:
         print("Specified icon path does not exist.")
 
 if args.trayicon:
-    shutil.copy(args.trayicon, os.path.join(app_dir, 'trayicon.png'))
+    tray_ext = os.path.splitext(args.trayicon)[1].lower()
+    tray_target = os.path.join(app_dir, 'trayicon.png')
+    try:
+        if tray_ext != '.png':
+            # Convert to PNG using cairosvg
+            cairosvg.svg2png(url=args.trayicon, write_to=tray_target)
+            print(f"Tray icon converted to PNG and saved to: {tray_target}")
+        else:
+            shutil.copy(args.trayicon, tray_target)
+            print(f"Tray icon copied to: {tray_target}")
+    except Exception as e:
+        print(f"Failed to process tray icon '{args.trayicon}': {e}")
 
 # Generate config.js that will be loaded by index.js during electron build
 config_template = """
@@ -187,24 +205,28 @@ config_content = config_template.format(
 with open(os.path.join(app_dir, 'config.js'), 'w') as config_file:
     config_file.write(config_content)
 
-# Load and update package.json
-shutil.copy(os.path.join(node_modules_src, 'package.json'), app_dir)
-package_json_path = os.path.join(app_dir, 'package.json')
-with open(package_json_path, 'r') as file:
-    package_data = json.load(file)
-
-    # Update values as required
-    package_data['name'] = args.appname
-    package_data['description'] = f"{args.appname} web client built with electron"
-    package_data['version'] = "1.0.0"
-    package_data['main'] = "index.js"
-    package_data['scripts'] = {
+# Generate fresh package.json
+electron_version = args.electron_version if args.electron_version else "^37.3.1"
+package_data = {
+    "name": args.appname,
+    "description": f"{args.appname} web client built with electron",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
         "pack": "electron-builder --dir",
         "start": "electron ."
-    }
-    package_data['author'] = "Arnis Kemlers"
-    package_data['license'] = "MIT"
-    package_data['build'] = {
+    },
+    "author": "Arnis Kemlers",
+    "license": "MIT",
+    "devDependencies": {
+        "electron": electron_version,
+        "electron-builder": "^26.0.12"
+    },
+    "dependencies": {
+        "electron-window-state": "^5.0.3",
+        "@ghostery/adblocker-electron": "^2.11.5"
+    },
+    "build": {
         "appId": f"e-webapp-{args.appname.lower()}",
         "linux": {
             "target": "AppImage",
@@ -214,9 +236,14 @@ with open(package_json_path, 'r') as file:
             "output": "dist"
         }
     }
-# Write the updated data back to package.json
-with open(package_json_path, 'w') as file:
-    json.dump(package_data, file, indent=2)
+}
+package_json_path = os.path.join(app_dir, 'package.json')
+with open(package_json_path, 'w') as f:
+    json.dump(package_data, f, indent=2)
+
+# Perform a clean npm install to ensure proper .bin shims
+print("Installing npm dependencies locally (no shared /tmp node_modules)...")
+subprocess.run(['npm', 'install', '--no-audit', '--no-fund'], cwd=app_dir, check=True)
 
 # Function to check if npm command is installed and is executable
 def command_exists(cmd):

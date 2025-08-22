@@ -127,10 +127,15 @@ def build_and_deploy_appimage(args, electron_dir, app_dir):
     appimage_destination_path = os.path.join(applications_dir, appimage_file_name)
     desktop_destination_path = os.path.join(local_applications_dir, f"{args.appname}.desktop")
 
-    # Move the AppImage to ~/Applications
+    # Move the AppImage to ~/Applications and ensure it is executable
     if os.path.exists(appimage_destination_path):
         os.remove(appimage_destination_path)
-    shutil.move(output_file, applications_dir)
+    final_path = shutil.move(output_file, applications_dir)
+    try:
+        # Force 0755 so all users can execute
+        os.chmod(final_path, 0o755)
+    except OSError as e:
+        print(f"Warning: failed to set executable bit on {final_path}: {e}")
     
     # Move the desktop file
     if os.path.exists(desktop_destination_path):

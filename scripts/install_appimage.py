@@ -144,9 +144,14 @@ def build_and_deploy_appimage(args, electron_dir, app_dir):
     print(f"{args.appname} installed successfully.")
 
 def handle_debug(args, app_dir):
-    if args.install_appimage and not args.debug:
-        # Delete the entire {appName} directory and all its content
-        shutil.rmtree(app_dir)
-    else:
-        if args.debug:
-            print(f"Debug mode is active. The directory {app_dir} will not be deleted.")
+    # Remove build directory after installation unless in debug mode.
+    # Applies to both --install and --install-appimage workflows.
+    if (getattr(args, 'install_appimage', False) or getattr(args, 'install', False)) and not getattr(args, 'debug', False):
+        if os.path.isdir(app_dir):
+            try:
+                shutil.rmtree(app_dir)
+                print(f"Removed build directory {app_dir} (not in debug mode).")
+            except Exception as e:
+                print(f"Warning: failed to remove build directory {app_dir}: {e}")
+    elif getattr(args, 'debug', False):
+        print(f"Debug mode active: preserving build directory {app_dir}.")

@@ -74,3 +74,28 @@ def install_app(args, app_dir, home_dir):
     os.chmod(uninstall_script_destination_path, 0o755)
 
     print(f"{args.appname} installed successfully.")
+
+    # Cleanup temporary build artifacts unless in debug mode
+    # This addresses issue: build data left in apps subfolder after --install
+    # Preserve only when --debug is supplied.
+    if getattr(args, 'install', False) and not getattr(args, 'debug', False):
+        artifacts = [
+            os.path.join(app_dir, 'dist'),            # electron-builder output
+            os.path.join(app_dir, 'node_modules'),    # dependency tree
+            desktop_file_path                         # duplicate desktop file in app folder
+        ]
+        removed = []
+        for path in artifacts:
+            try:
+                if os.path.isdir(path):
+                    shutil.rmtree(path, ignore_errors=True)
+                    removed.append(os.path.basename(path))
+                elif os.path.isfile(path):
+                    os.remove(path)
+                    removed.append(os.path.basename(path))
+            except Exception as e:
+                print(f"Warning: failed to remove artifact {path}: {e}")
+        if removed:
+            print("Cleaned temporary build artifacts: " + ", ".join(removed))
+    elif getattr(args, 'debug', False):
+        print("Debug mode active: build artifacts preserved in app source directory.")

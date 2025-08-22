@@ -5,50 +5,93 @@ import shutil
 import argparse
 import glob
 import subprocess
+import sys
+
+def command_exists(cmd):
+    return shutil.which(cmd) is not None
 
 def delete_app_folder(appname):
     app_name_lower = appname.lower()
     app_folder_path = os.path.expanduser(f'~/.local/share/e-webapp/e-webapp-{app_name_lower}')
     if os.path.exists(app_folder_path):
-        shutil.rmtree(app_folder_path)
-        print(f"Deleted app folder: {app_folder_path}")
+        try:
+            shutil.rmtree(app_folder_path)
+            print(f"Deleted app folder: {app_folder_path}")
+            return True
+        except Exception as e:
+            print(f"Warning: failed to delete app folder {app_folder_path}: {e}")
+            return False
     else:
         print(f"App folder not found: {app_folder_path}")
+        return False
 
 def delete_desktop_file(appname):
     desktop_file_pattern = os.path.expanduser(f'~/.local/share/applications/{appname}*.desktop')
     desktop_files = glob.glob(desktop_file_pattern, recursive=True)
     if desktop_files:
+        deleted_any = False
         for desktop_file_path in desktop_files:
-            os.remove(desktop_file_path)
-            print(f"Deleted desktop file: {desktop_file_path}")
+            try:
+                os.remove(desktop_file_path)
+                print(f"Deleted desktop file: {desktop_file_path}")
+                deleted_any = True
+            except Exception as e:
+                print(f"Warning: failed to delete desktop file {desktop_file_path}: {e}")
+        return deleted_any
     else:
         print(f"Desktop file not found: {desktop_file_pattern}")
+        return False
 
 def delete_cache_file(appname):
     app_name_lower = appname.lower()
     cache_file_path = os.path.expanduser(f'~/.config/e-webapp-{app_name_lower}')
     if os.path.exists(cache_file_path):
-        shutil.rmtree(cache_file_path)
-        print(f"Deleted cache file: {cache_file_path}")
+        try:
+            shutil.rmtree(cache_file_path)
+            print(f"Deleted cache directory: {cache_file_path}")
+            return True
+        except Exception as e:
+            print(f"Warning: failed to delete cache directory {cache_file_path}: {e}")
+            return False
     else:
         print(f"Cache file not found: {cache_file_path}")
+        return False
 
-def send_notification(appname):
-    notification_title = "Uninstallation Complete"
-    notification_body = f"{appname} has been successfully uninstalled."
-    timeout = 5000  # Timeout in milliseconds (5 seconds)
-    subprocess.run(['e-webapp', '-t', str(timeout), notification_title, notification_body])
+def send_notification(title, body, timeout_ms=5000):
+    """Try multiple notification mechanisms; fall back to stdout."""
+    # Preferred custom notifier
+    if command_exists('e-webapp'):
+        try:
+            subprocess.run(['e-webapp', '-t', str(timeout_ms), title, body], check=False)
+            return
+        except Exception as e:
+            print(f"Warning: e-webapp notification failed: {e}")
+    # Fallback to notify-send
+    if command_exists('notify-send'):
+        try:
+            subprocess.run(['notify-send', title, body], check=False)
+            return
+        except Exception as e:
+            print(f"Warning: notify-send failed: {e}")
+    # Final fallback
+    print(f"{title}: {body}")
 
 def main():
     parser = argparse.ArgumentParser(description='Uninstall e-webapp.')
     parser.add_argument('-n', '--appname', required=True, help='The name of the app to uninstall')
     args = parser.parse_args()
 
-    delete_app_folder(args.appname)
-    delete_desktop_file(args.appname)
-    delete_cache_file(args.appname)
-    send_notification(args.appname)
+    app_deleted = delete_app_folder(args.appname)
+    desktop_deleted = delete_desktop_file(args.appname)
+    cache_deleted = delete_cache_file(args.appname)
+
+    if any([app_deleted, desktop_deleted, cache_deleted]):
+        send_notification("Uninstallation Complete", f"{args.appname} has been successfully uninstalled.")
+        sys.exit(0)
+    else:
+        # Nothing was removed; app not installed.
+        send_notification("Application Not Found", f"{args.appname} is not installed.")
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()

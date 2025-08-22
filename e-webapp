@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-
 import argparse
 import os
 import shutil
@@ -9,7 +8,6 @@ import re
 import subprocess
 import sys
 import cairosvg
-import tempfile
 from scripts.e_webapp_subfunctions import update_easylist_if_needed, get_webpage_metadata, get_default_icon
 from scripts.install_appimage import prepare_appimage_folder, build_and_deploy_appimage, handle_debug
 from scripts.install_app import install_app

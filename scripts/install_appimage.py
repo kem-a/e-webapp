@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 import os
 import shutil
-import subprocess
 from scripts.build_appimage import build_appimage
 
 ####################

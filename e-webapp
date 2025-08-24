@@ -218,7 +218,7 @@ package_data = {
     "license": "MIT",
     "devDependencies": {
         "electron": electron_version,
-        "electron-builder": "^26.0.12"
+        "electron-builder": "^25.0.5"
     },
     "dependencies": {
         "electron-window-state": "^5.0.3",
@@ -241,7 +241,7 @@ with open(package_json_path, 'w') as f:
 
 # Perform a clean npm install to ensure proper .bin shims
 print("Installing npm dependencies locally (no shared /tmp node_modules)...")
-subprocess.run(['npm', 'install', '--no-audit', '--no-fund'], cwd=app_dir, check=True)
+subprocess.run(['npm', 'install', '--no-audit', '--no-fund', '--legacy-peer-deps'], cwd=app_dir, check=True)
 
 # Function to check if npm command is installed and is executable
 def command_exists(cmd):

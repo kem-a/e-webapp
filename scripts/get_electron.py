@@ -27,12 +27,12 @@ def setup_electron(app_dir, electron_version=None):
     os.makedirs(TEMP_NODE_MODULES, exist_ok=True)
 
     # Setup electron version
-    electron_version = f"@{electron_version}" if electron_version else "@latest"
+    electron_version = f"@{electron_version}" if electron_version else "@^37.3.1"
     npm_commands = [
         f"npm install electron{electron_version} --save-dev",
-        "npm install electron-builder --save-dev",
-        "npm install --save electron-window-state",
-        "npm install --save @ghostery/adblocker-electron"
+        "npm install electron-builder@^25.0.5 --save-dev",
+        "npm install --save electron-window-state@^5.0.3",
+        "npm install --save @ghostery/adblocker-electron@^2.11.5"
     ]
 
     # Check for npm availability

@@ -44,9 +44,8 @@ cd <repository-name>
 **Install Dependencies**
 
 ```sh
-npm
-cairosvg
-bs4
+sudo dnf install npm pip
+pip install -r requirements.txt
 ```
 
 

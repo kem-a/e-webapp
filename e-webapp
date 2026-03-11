@@ -8,7 +8,7 @@ import re
 import subprocess
 import sys
 import cairosvg
-from scripts.e_webapp_subfunctions import update_easylist_if_needed, get_webpage_metadata, get_default_icon
+from scripts.e_webapp_subfunctions import update_easylist_if_needed, get_webpage_metadata, get_app_icon
 from scripts.install_appimage import prepare_appimage_folder, build_and_deploy_appimage, handle_debug
 from scripts.install_app import install_app
 from scripts.get_electron import setup_electron  # Legacy: will be skipped now (kept for compatibility)
@@ -99,16 +99,8 @@ if not os.path.exists(src):
 shutil.copy(src, app_dir)
 
 # Copy and rename ICONS
-# Function to find any icon
-def find_any_icon(app_name, search_paths):
-    for base_path in search_paths:
-        for dirpath, dirnames, files in os.walk(base_path):
-            for file in files:
-                if file.lower().startswith(app_name.lower()):
-                    return os.path.join(dirpath, file)
-    return None
 
-# Function to convert to PNG
+# Function to convert to PNG (legacy - kept for compatibility)
 def convert_to_png(source_path, app_name, app_dir):
     # Ensure target directory exists
     if not os.path.exists(app_dir):
@@ -120,41 +112,36 @@ def convert_to_png(source_path, app_name, app_dir):
     except Exception as e:
         print(f"Error converting image to PNG: {e}")
 
+# Legacy function - kept for compatibility but replaced by comprehensive search
+def find_any_icon(app_name, search_paths):
+    for base_path in search_paths:
+        for dirpath, dirnames, files in os.walk(base_path):
+            for file in files:
+                if file.lower().startswith(app_name.lower()):
+                    return os.path.join(dirpath, file)
+    return None
+
 # Check if --icon is not provided
 if not args.icon:
-    app_name_lower = args.appname.lower()  # Assuming preprocessing has been applied
-    search_paths = [
-        os.path.expanduser("~/.local/share/icons/"),
-        "/usr/share/icons/hicolor/512x512/apps/",
-        "/usr/share/icons/hicolor/256x256/apps/",
-        "/usr/share/icons/hicolor/128x128/apps/",
-        "/usr/share/icons/hicolor/64x64/apps/",
-        "/usr/share/icons/hicolor/48x48/apps/",
-        "/usr/share/pixmaps/"
-    ]
-    found_icon_path = find_any_icon(app_name_lower, search_paths)
-    if found_icon_path:
-        print(f"Icon found: {found_icon_path}")
-        if not found_icon_path.endswith('.png'):
-            # Convert to PNG if necessary. Ensure app_dir is defined as your app's directory path
-            convert_to_png(found_icon_path, app_name_lower, app_dir)
-        else:
-            # If it's already a PNG, just copy it to the desired location
-            target_icon_path = os.path.join(app_dir, f"{app_name_lower}/icon.png")
-            shutil.copy(found_icon_path, target_icon_path)
-            print(f"Icon copied to: {target_icon_path}")
-    else:
-        print("Icon not found on the host machine.")
-        # Try to get icon from web or copy default from templates
-        get_default_icon(electron_dir, app_dir, resources_dir)
+    app_name_lower = args.appname.lower()
+    
+    # Use the comprehensive icon search
+    success = get_app_icon(app_name_lower, electron_dir, app_dir)
+    if not success:
+        print("Warning: Failed to obtain any icon for the application")
 else:
     # Logic to handle a manually provided icon path
-    # For example, copying the specified icon to the app's directory
     if os.path.isfile(args.icon):
-        shutil.copy(args.icon, os.path.join(app_dir, 'icon.png'))
-        print(f"Manually specified icon copied to: {os.path.join(app_dir, 'icon.png')}")
+        target_icon_path = os.path.join(app_dir, 'icon.png')
+        shutil.copy(args.icon, target_icon_path)
+        print(f"✓ Manually specified icon copied to: {target_icon_path}")
     else:
-        print("Specified icon path does not exist.")
+        print("✗ Specified icon path does not exist.")
+        # Fall back to comprehensive search
+        app_name_lower = args.appname.lower()
+        success = get_app_icon(app_name_lower, electron_dir, app_dir)
+        if not success:
+            print("Warning: Failed to obtain any icon for the application")
 
 if args.trayicon:
     tray_ext = os.path.splitext(args.trayicon)[1].lower()

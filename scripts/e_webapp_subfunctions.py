@@ -106,30 +106,329 @@ def extract_webpage_metadata(page_url):
         title = soup.find('title').text if soup.find('title') else ''
         description = soup.find('meta', attrs={'name': 'description'})['content'] if soup.find('meta', attrs={'name': 'description'}) else ''
         keywords = soup.find('meta', attrs={'name': 'keywords'})['content'] if soup.find('meta', attrs={'name': 'keywords'}) else ''
-        return {'title': title, 'description': description, 'keywords': keywords}
-    except requests.exceptions.RequestException as e:
-        print(f"Failed to fetch the webpage: {e}")
-        return {}
+        
+        return title, description, keywords
+    except Exception as e:
+        print(f"Error extracting webpage metadata: {e}")
+        return '', '', ''
 
 def get_webpage_metadata(page_url):
-
-    metadata = extract_webpage_metadata(page_url)
-    manifest, manifest_url = try_fetch_manifest_from_root(page_url)
-    if not manifest:
-        manifest, manifest_url = find_manifest_in_page(page_url)
+    """Extract webpage metadata and save to webpage_meta.json."""
+    print(f"Extracting metadata from: {page_url}")
     
+    # Extract basic metadata
+    title, description, keywords = extract_webpage_metadata(page_url)
+    
+    # Try to find manifest and icon
     icon_url = None
+    
+    # Try manifest from root
+    manifest, manifest_url = try_fetch_manifest_from_root(page_url)
     if manifest:
         icon_url = fetch_and_save_high_res_icon(manifest, manifest_url)
+    
+    # If no manifest icon, try searching in page
+    if not icon_url:
+        manifest, manifest_url = find_manifest_in_page(page_url)
+        if manifest:
+            icon_url = fetch_and_save_high_res_icon(manifest, manifest_url)
+    
+    # If still no icon, try common favicon locations
+    if not icon_url:
+        parsed_url = urlparse(page_url)
+        favicon_urls = [
+            f"{parsed_url.scheme}://{parsed_url.netloc}/favicon.ico",
+            f"{parsed_url.scheme}://{parsed_url.netloc}/favicon.png",
+            f"{parsed_url.scheme}://{parsed_url.netloc}/favicon.svg"
+        ]
+        
+        for favicon_url in favicon_urls:
+            try:
+                response = requests.head(favicon_url, timeout=5)
+                if response.status_code == 200:
+                    icon_url = favicon_url
+                    break
+            except:
+                continue
+    
+    # Save metadata to file
+    metadata = {
+        'title': title,
+        'description': description,
+        'keywords': keywords,
+        'icon_url': icon_url or ''
+    }
+    
+    # Get the directory where we should save the metadata
+    electron_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    meta_file_path = os.path.join(electron_dir, 'webpage_meta.json')
+    
+    try:
+        with open(meta_file_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        print(f"✓ Metadata saved to: {meta_file_path}")
+        print(f"  Title: {title}")
+        print(f"  Icon: {icon_url or 'None'}")
+    except Exception as e:
+        print(f"Error saving metadata: {e}")
 
-    metadata['icon_url'] = icon_url or ""
-    with open('webpage_meta.json', 'w') as file:
-        json.dump(metadata, file, indent=4, ensure_ascii=False)
+#########################
+# ICON SEARCH AND HANDLING FUNCTIONS
+#####
 
+def get_system_icon_theme():
+    """Get the current system icon theme name."""
+    try:
+        # Try gsettings first (GNOME/GTK)
+        import subprocess
+        result = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'icon-theme'],
+                              capture_output=True, text=True, timeout=2)
+        if result.returncode == 0:
+            theme = result.stdout.strip().strip("'\"")
+            if theme and theme != 'Default':
+                return theme
+    except:
+        pass
+    
+    # Try GTK config file
+    gtk_config = os.path.expanduser("~/.config/gtk-3.0/settings.ini")
+    if os.path.exists(gtk_config):
+        try:
+            with open(gtk_config, 'r') as f:
+                for line in f:
+                    if line.startswith('gtk-icon-theme-name='):
+                        theme = line.split('=', 1)[1].strip()
+                        if theme:
+                            return theme
+        except:
+            pass
+    
+    # Default fallback
+    return "hicolor"
+
+def get_comprehensive_search_paths(theme_name):
+    """Generate comprehensive search paths for icons with scalable first."""
+    search_paths = []
+    
+    # Base icon directories
+    base_dirs = [
+        "/usr/share/icons",
+        "/usr/local/share/icons", 
+        os.path.expanduser("~/.local/share/icons"),
+        os.path.expanduser("~/.icons")
+    ]
+    
+    # Icon sizes in order of preference (largest first)
+    sizes = ["512x512", "256x256", "128x128", "96x96", "64x64", "48x48", "32x32", "24x24", "16x16"]
+    
+    # Categories to search
+    categories = ["apps", "applications", "places", "mimetypes", "devices", "status"]
+    
+    # 1. Current theme paths - SCALABLE FIRST
+    for base_dir in base_dirs:
+        theme_dir = os.path.join(base_dir, theme_name)
+        if os.path.exists(theme_dir):
+            # Scalable paths FIRST (higher priority)
+            for category in categories:
+                search_paths.append(os.path.join(theme_dir, "scalable", category))
+            # Then size-specific paths
+            for size in sizes:
+                for category in categories:
+                    search_paths.append(os.path.join(theme_dir, size, category))
+    
+    # 2. Hicolor fallback (universal theme) - SCALABLE FIRST
+    if theme_name != "hicolor":
+        for base_dir in base_dirs:
+            hicolor_dir = os.path.join(base_dir, "hicolor")
+            if os.path.exists(hicolor_dir):
+                # Scalable paths FIRST
+                for category in categories:
+                    search_paths.append(os.path.join(hicolor_dir, "scalable", category))
+                # Then size-specific paths
+                for size in sizes:
+                    for category in categories:
+                        search_paths.append(os.path.join(hicolor_dir, size, category))
+    
+    # 3. Legacy pixmaps paths
+    search_paths.extend([
+        "/usr/share/pixmaps",
+        os.path.expanduser("~/.local/share/pixmaps")
+    ])
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_paths = []
+    for path in search_paths:
+        if path not in seen:
+            seen.add(path)
+            unique_paths.append(path)
+    
+    return unique_paths
+
+def find_app_icon_comprehensive(app_name, search_paths):
+    """Find application icon with comprehensive pattern matching."""
+    app_variants = [
+        app_name.lower(),
+        app_name.lower().replace('_', '-'),
+        app_name.lower().replace('-', '_'),
+        app_name.lower().replace(' ', '-'),
+        app_name.lower().replace(' ', '_'),
+    ]
+    
+    # Remove duplicates
+    app_variants = list(set(app_variants))
+    
+    for search_path in search_paths:
+        if not os.path.exists(search_path):
+            continue
+            
+        try:
+            for root, dirs, files in os.walk(search_path):
+                for file in files:
+                    file_lower = file.lower()
+                    file_base = os.path.splitext(file_lower)[0]
+                    
+                    # Check various matching patterns
+                    for variant in app_variants:
+                        # Exact match
+                        if file_base == variant:
+                            return os.path.join(root, file)
+                        
+                        # Starts with variant
+                        if file_base.startswith(variant + '-'):
+                            return os.path.join(root, file)
+                        
+                        if file_base.startswith(variant + '_'):
+                            return os.path.join(root, file)
+                        
+                        # Contains variant (for complex names)
+                        if variant in file_base and len(variant) > 3:
+                            return os.path.join(root, file)
+                            
+        except (OSError, PermissionError):
+            continue
+    
+    return None
+
+def download_web_icon(icon_url, target_path):
+    """Download icon from web with proper error handling."""
+    try:
+        response = requests.get(icon_url, timeout=10, stream=True)
+        response.raise_for_status()
+        
+        # Check content type
+        content_type = response.headers.get('content-type', '').lower()
+        if not any(img_type in content_type for img_type in ['image/', 'application/octet-stream']):
+            return False
+            
+        # Check content length (avoid very small or huge files)
+        content_length = response.headers.get('content-length')
+        if content_length:
+            size = int(content_length)
+            if size < 100 or size > 10*1024*1024:  # < 100 bytes or > 10MB
+                return False
+        
+        # Download and save
+        with open(target_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        # Verify the downloaded file is actually an image
+        try:
+            with Image.open(target_path) as img:
+                img.verify()
+            return True
+        except:
+            # Not a valid image, remove it
+            if os.path.exists(target_path):
+                os.remove(target_path)
+            return False
+            
+    except Exception as e:
+        print(f"Failed to download web icon: {e}")
+        return False
+
+def get_app_icon(app_name, electron_dir, app_dir):
+    """Main function to get application icon with improved search order."""
+    import cairosvg
+    
+    target_icon_path = os.path.join(app_dir, 'icon.png')
+    default_icon_path = os.path.join(electron_dir, 'src', 'assets', 'default.png')
+    
+    print(f"Searching for icon for '{app_name}'...")
+    
+    # Step 1: Search in system icon themes
+    print("Step 1: Searching system icon themes...")
+    current_theme = get_system_icon_theme()
+    print(f"Current icon theme: {current_theme}")
+    
+    search_paths = get_comprehensive_search_paths(current_theme)
+    print(f"Searching in {len(search_paths)} locations...")
+    
+    found_icon = find_app_icon_comprehensive(app_name, search_paths)
+    if found_icon:
+        print(f"✓ Found system icon: {found_icon}")
+        
+        # Convert if needed
+        if not found_icon.lower().endswith('.png'):
+            try:
+                # Convert to PNG
+                if not os.path.exists(app_dir):
+                    os.makedirs(app_dir, exist_ok=True)
+                cairosvg.svg2png(url=found_icon, write_to=target_icon_path)
+                print(f"✓ Icon converted to PNG: {target_icon_path}")
+                return True
+            except Exception as e:
+                print(f"Failed to convert icon: {e}")
+                # Fall through to copy as-is
+                pass
+        
+        # Copy PNG directly
+        shutil.copy(found_icon, target_icon_path)
+        print(f"✓ Icon copied to: {target_icon_path}")
+        return True
+    
+    print("✗ No system icon found")
+    
+    # Step 2: Try web page icon (using original working logic)
+    print("Step 2: Searching web page for icon...")
+    meta_file_path = os.path.join(electron_dir, 'webpage_meta.json')
+    
+    if os.path.exists(meta_file_path):
+        try:
+            with open(meta_file_path, 'r') as f:
+                meta_data = json.load(f)
+            
+            icon_url = meta_data.get('icon_url', '')
+            if icon_url:
+                print(f"Found web icon URL: {icon_url}")
+                if download_web_icon(icon_url, target_icon_path):
+                    print("✓ Web icon downloaded successfully")
+                    return True
+                else:
+                    print("✗ Web icon download failed")
+        except Exception as e:
+            print(f"Error reading web metadata: {e}")
+    
+    print("✗ No web icon found")
+    
+    # Step 3: Use default fallback
+    print("Step 3: Using default fallback icon...")
+    if os.path.exists(default_icon_path):
+        shutil.copy(default_icon_path, target_icon_path)
+        print(f"✓ Default icon copied to: {target_icon_path}")
+        return True
+    else:
+        print("✗ Default icon not found!")
+        return False
 
 #########################
 # GET ICON FROM WEB PAGE OR COPY DEFAULT
 #####
+
+# Note: Icon handling has been moved to the main e-webapp script for better integration
+# with the comprehensive search system. This function is kept for backward compatibility
+# but is no longer used in the main workflow.
 
 def get_default_icon(electron_dir, app_dir, template_dir):
     # Path to search for 'webpage_meta.json'

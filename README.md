@@ -48,7 +48,6 @@ sudo dnf install npm pip
 pip install -r requirements.txt
 ```
 
-
 ## Command Line Arguments
 
 The script supports various command line arguments to customize the application build:
@@ -82,10 +81,10 @@ Pass the `--debug` flag to keep the build directory for debugging purposes.
 
 ## Known Bugs and Issues
 
-* screen sharing does not work (would appreciate if someone can help me with this)
-* some web site notifications won't work due to custom implementation, like outlook.com or icloud.com
-* new windows from links open with default menus that action main menu, like quit will quit entire app not just new window
-* no proper internal url handling
+- screen sharing does not work (would appreciate if someone can help me with this)
+- some web site notifications won't work due to custom implementation, like outlook.com or icloud.com
+- new windows from links open with default menus that action main menu, like quit will quit entire app not just new window
+- no proper internal url handling
 
 ## Contributing
 
